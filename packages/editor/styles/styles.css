@@ -1037,61 +1037,133 @@ del.diffdel {
 }
 
 /* Drag & drop (see extensions/drag-drop) */
-.ProseMirror .drop-gap {
-  list-style-type: none;
-  box-sizing: border-box;
-  overflow: hidden;
-  margin-block: 8px;
-  border-radius: 5px;
-  background-color: var(--background-secondary);
-  border: 1px dashed var(--border);
-  transition: height 120ms ease-out, margin-inline-start 120ms ease-out;
-}
 
+/* the faded copy of the item that follows the pointer */
 .drag-preview {
   position: fixed;
   top: 0;
+  left: 0;
   z-index: 9999;
   margin: 0;
-  padding-block: 6px;
-  padding-inline: 8px;
+  padding: 0;
   box-sizing: border-box;
   pointer-events: none;
   user-select: none;
-  border-radius: 5px;
-  background-color: var(--background);
-  box-shadow: 0px 2px 10px 0px rgba(0, 0, 0, 0.2);
-  transition: left 120ms ease-out, width 120ms ease-out;
+  opacity: 0.45;
 }
 
-/* the item is styled by the list it was taken out of, so the preview has to
-   say what a task item looks like on its own */
-.drag-preview ul {
+/* a tall item (with many children) fades out at the bottom */
+.drag-preview.tall {
+  max-height: 320px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+.drag-preview ul,
+.drag-preview ol {
   margin: 0;
+}
+
+/* the item is styled by the list it was taken out of, so the copy has to
+   say what a task item looks like on its own */
+.drag-preview ul.tasklist-content-wrapper {
   padding: 0;
 }
 
-.drag-preview li {
+.drag-preview ul.tasklist-content-wrapper > li {
   display: flex;
   list-style-type: none;
-  margin: 0;
 }
 
-/* how many children are coming along with the item */
-.drag-preview-badge {
-  align-self: center;
-  flex-shrink: 0;
-  margin-inline-start: 4px;
-  padding: 0px 6px;
-  border-radius: 100px;
-  font-size: 0.8em;
-  background-color: var(--background-secondary);
-  color: var(--paragraph-secondary);
+/* where the item will land */
+.drop-line {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background-color: var(--accent);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.drop-line.visible {
+  opacity: 0.6;
+}
+
+/* while an item is dragged, it is held */
+.dragging-list-item,
+.dragging-list-item * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* the drag handle next to bullet, numbered and check list items, which
+   follows the mouse (see extensions/drag-drop/list-item-handle.ts) */
+.list-item-handle {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 4px;
+  color: var(--icon);
+  cursor: grab;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: opacity 120ms ease-out, background-color 120ms ease-out;
+}
+
+.list-item-handle.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.list-item-handle:hover {
+  background-color: var(--hover);
+}
+
+.list-item-handle svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  pointer-events: none;
+}
+
+/* a list item that was just moved, or selected by clicking its handle:
+   tinted, with everything nested in it — and its bullet, number or
+   checkbox (the shadow, which is only drawn outside the item) */
+.ProseMirror li.ProseMirror-selectednode {
+  outline: none;
+  border-radius: 4px;
+  background-color: var(--shade, var(--background-secondary));
+  box-shadow: -1.6em 0 0 0 var(--shade, var(--background-secondary));
+}
+
+.ProseMirror .simple-checklist > li.ProseMirror-selectednode {
+  box-shadow: -28px 0 0 0 var(--shade, var(--background-secondary));
+}
+
+.ProseMirror .tasklist-content-wrapper > li.ProseMirror-selectednode {
+  box-shadow: none;
+}
+
+[dir="rtl"] .ProseMirror li.ProseMirror-selectednode,
+.ProseMirror [dir="rtl"] li.ProseMirror-selectednode {
+  box-shadow: 1.6em 0 0 0 var(--shade, var(--background-secondary));
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ProseMirror .drop-gap,
-  .drag-preview {
+  .list-item-handle {
     transition: none;
   }
 }
