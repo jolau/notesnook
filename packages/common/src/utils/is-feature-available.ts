@@ -648,7 +648,16 @@ export async function areFeaturesAvailable<TIds extends FeatureId[]>(
   return results;
 }
 
+/**
+ * NOTE: this build unlocks every feature, as if on the highest plan, for
+ * whoever uses it — signed in or not. It only changes what the app itself
+ * allows: whatever the sync server enforces (storage, upload size,
+ * publishing) still depends on the account's real plan.
+ */
+const UNLOCK_ALL_FEATURES = true;
+
 async function getUserPlan() {
+  if (UNLOCK_ALL_FEATURES) return SubscriptionPlan.BELIEVER;
   const user = await db.user.getUser();
   const plan = user?.subscription?.plan || SubscriptionPlan.FREE;
   return plan;
