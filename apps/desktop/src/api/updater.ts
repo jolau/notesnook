@@ -32,7 +32,14 @@ type Progress = { percent: number };
 const t = initTRPC.create();
 let cancellationToken: CancellationToken | undefined = undefined;
 let downloadTimeout: NodeJS.Timeout | undefined = undefined;
-const updatesSupported = !isFlatpak() && !isSnap() && !isPortable();
+/**
+ * NOTE: this is a build of a fork. The official updates would take away
+ * what the fork adds (and cannot be installed over it anyway: it is signed
+ * differently), so it never looks for any. To update, build it again.
+ */
+const IS_FORK_BUILD = true;
+const updatesSupported =
+  !IS_FORK_BUILD && !isFlatpak() && !isSnap() && !isPortable();
 export const updaterRouter = t.router({
   autoUpdates: t.procedure.query(
     () => updatesSupported && config.automaticUpdates
