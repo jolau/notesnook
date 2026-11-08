@@ -17,12 +17,11 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import { mergeAttributes, wrappingInputRule } from "@tiptap/core";
+import { mergeAttributes } from "@tiptap/core";
 import { TaskList } from "@tiptap/extension-task-list";
 import { createNodeView } from "../react/index.js";
 import { TaskListComponent } from "./component.js";
 import { Plugin, PluginKey, NodeSelection } from "prosemirror-state";
-import { inputRegex } from "@tiptap/extension-task-item";
 import { dropPoint } from "prosemirror-transform";
 import {
   findChildrenByType,
@@ -39,7 +38,6 @@ import {
 } from "./utils.js";
 import { Node as ProsemirrorNode } from "@tiptap/pm/model";
 import { TaskItemNode } from "../task-item/index.js";
-import { ListItem } from "../list-item/list-item.js";
 import { tiptapKeys } from "@notesnook/common";
 import { hasPermission } from "../../types.js";
 
@@ -331,45 +329,10 @@ export const TaskListNode = TaskList.extend({
     ];
   },
 
+  // NOTE: no input rule: typing `[ ]` makes a check list (see CheckList).
+  // A task list is made with the toolbar or its keyboard shortcut.
   addInputRules() {
-    const inputRule = wrappingInputRule({
-      find: inputRegex,
-      type: this.type,
-      getAttributes: () => {
-        return getParentAttributes(this.editor, true, true);
-      }
-    });
-    const oldHandler = inputRule.handler;
-    inputRule.handler = ({ state, range, match, chain, can, commands }) => {
-      if (!hasPermission("toggleTaskList", true)) return;
-
-      const $from = state.selection.$from;
-      const parentNode = $from.node($from.depth - 1);
-      if (parentNode.type.name === ListItem.name) {
-        return;
-      }
-
-      const tr = state.tr;
-      // reset nodes before converting them to a task list.
-      commands.clearNodes();
-
-      oldHandler({
-        state,
-        range: {
-          from: tr.mapping.map(range.from),
-          to: tr.mapping.map(range.to)
-        },
-        match,
-        chain,
-        can,
-        commands
-      });
-
-      tr.setNodeMarkup(state.tr.selection.to - 2, undefined, {
-        checked: match[match.length - 1] === "x"
-      });
-    };
-    return [inputRule];
+    return [];
   },
 
   addKeyboardShortcuts() {

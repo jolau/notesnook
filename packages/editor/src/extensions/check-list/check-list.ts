@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import { mergeAttributes, Node, wrappingInputRule } from "@tiptap/core";
 import { inputRegex } from "@tiptap/extension-task-item";
 import { getParentAttributes } from "../../utils/prosemirror.js";
-import { ListItem } from "../list-item/index.js";
 import { tiptapKeys } from "@notesnook/common";
 
 export interface CheckListOptions {
@@ -92,15 +91,12 @@ export const CheckList = Node.create<CheckListOptions>({
       }
     });
     const oldHandler = inputRule.handler;
+    // NOTE: anywhere, not just in a bullet list item (`- [ ]`): `[ ]` makes
+    // a check list, not a task list (see TaskList)
     inputRule.handler = ({ state, range, match, chain, can, commands }) => {
-      const $from = state.selection.$from;
-      const parentNode = $from.node($from.depth - 1);
-      if (parentNode.type.name !== ListItem.name) {
-        return;
-      }
-
       const tr = state.tr;
-      // reset nodes before converting them to a check list.
+      // reset nodes (a bullet list item, a heading) before converting them
+      // to a check list.
       commands.clearNodes();
 
       oldHandler({
