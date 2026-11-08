@@ -284,7 +284,7 @@ const useTiptap = (
         OrderedList.configure({ keepMarks: true, keepAttributes: true }),
         TaskItemNode.configure({ nested: true }),
         TaskListNode,
-        DragDrop,
+        DragDrop.configure({ listItemHandle: !isMobile }),
         Link.extend({
           inclusive: true
         }).configure({
