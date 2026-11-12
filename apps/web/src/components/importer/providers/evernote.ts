@@ -30,11 +30,12 @@ import {
 } from "@notesnook-importer/core";
 import { ElementHandler } from "@notesnook-importer/core/dist/src/providers/evernote/element-handlers";
 import { parse, processContent } from "@notesnook-importer/enex";
-import { normalizeEnml } from "./enml";
+import { hasClip, normalizeEnml } from "./enml";
 
 /**
  * The stock Evernote provider, with two changes:
- * - checkboxes become check lists (see `normalizeEnml`)
+ * - checkboxes, web clips and text the stock importer gets wrong are
+ *   fixed in the ENML first (see `normalizeEnml`)
  * - the folders around an .enex file become its parent notebooks, so
  *   that an export with stacks as folders keeps its structure. The folder
  *   (or .zip) that was dropped is the export itself, not a notebook.
@@ -100,7 +101,12 @@ export class Evernote implements IFileProvider<string[]> {
             const html = await processContent(
               normalizeEnml(enNote.content),
               elementHandler,
-              enNote
+              // a note from the web clipper is kept as one full page clip,
+              // unless it is in Evernote 10's format: then normalizeEnml
+              // has handled its clip
+              hasClip(enNote.content)
+                ? { ...enNote, source: undefined, sourceApplication: undefined }
+                : enNote
             );
             note.content = { data: html.trim(), type: ContentType.HTML };
           } catch (e) {

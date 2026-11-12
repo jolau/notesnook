@@ -19,6 +19,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import "./bootstrap";
 import { expect, test } from "vitest";
+import { processContent, Note as ENNote } from "@notesnook-importer/enex";
+import { ElementHandler } from "@notesnook-importer/core/dist/src/providers/evernote/element-handlers";
+import { xxhash64 } from "hash-wasm";
 import { normalizeEnml } from "../src/components/importer/providers/enml";
 import { relativePaths } from "../src/components/importer/providers";
 
@@ -26,6 +29,17 @@ const enml = (body: string) =>
   `<?xml version="1.0" encoding="UTF-8" standalone="no"?><!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd"><en-note>${body}</en-note>`;
 
 const body = (enml: string) => /<en-note>([\s\S]*)<\/en-note>/.exec(enml)?.[1];
+
+/** what the importer makes of a note: normalizeEnml, then the stock converter */
+async function convert(body: string) {
+  const handler = new ElementHandler(
+    { title: "", attachments: [] },
+    { resources: [] } as unknown as ENNote,
+    { type: "xxh64", hash: xxhash64 },
+    {}
+  );
+  return processContent(normalizeEnml(enml(body)), handler);
+}
 
 test("checkboxes on lines become one check list", () => {
   expect(
@@ -55,7 +69,7 @@ test("a link left empty by its checkbox is removed", () => {
   );
 });
 
-test("Evernote 10 check lists, with a plain item in the middle", () => {
+test("Evernote 10 check lists: an item without a state is unticked", () => {
   expect(
     body(
       normalizeEnml(
@@ -65,7 +79,21 @@ test("Evernote 10 check lists, with a plain item in the middle", () => {
       )
     )
   ).toBe(
-    `<ul class="simple-checklist"><li style="--en-checked:false;" class="simple-checklist--item"><div>ask</div></li></ul><ul style="--en-todo:true;"><li><div>note</div></li></ul><ul class="simple-checklist"><li style="--en-checked:true;" class="simple-checklist--item checked"><div>done</div></li></ul>`
+    `<ul class="simple-checklist"><li style="--en-checked:false;" class="simple-checklist--item"><div>ask</div></li><li class="simple-checklist--item"><div>note</div></li><li style="--en-checked:true;" class="simple-checklist--item checked"><div>done</div></li></ul>`
+  );
+});
+
+test("a list mixing checkboxes and bullets is split", () => {
+  expect(
+    body(
+      normalizeEnml(
+        enml(
+          `<ul><li><div><en-todo checked="true"/>a</div></li><li><div>b</div></li></ul>`
+        )
+      )
+    )
+  ).toBe(
+    `<ul class="simple-checklist"><li class="simple-checklist--item checked"><div>a</div></li></ul><ul><li><div>b</div></li></ul>`
   );
 });
 
@@ -101,11 +129,44 @@ test("a checkbox without a line around it", () => {
   );
 });
 
-test("entities and other markup are left alone", () => {
-  const input = enml(
-    `<div>Caf&#xE9; &amp; &nbsp;<en-media hash="abc" type="image/png"/></div><table><tr><td><div>x</div></td></tr></table>`
+test("text that looks like markup stays text, also in code blocks", async () => {
+  expect(
+    await convert(
+      `<div>#include &lt;stdio.h&gt; Caf&#xE9; &amp; &nbsp;x</div><div style="--en-codeblock:true;"><div>if (a &lt; b &amp;&amp; c)</div></div>`
+    )
+  ).toBe(
+    `<p>#include &lt;stdio.h&gt; Caf&#xE9; &amp; &nbsp;x</p><pre>if (a &lt; b &amp;&amp; c)</pre>`
   );
-  expect(normalizeEnml(input)).toBe(input);
+});
+
+test("a selection clip becomes part of the note", async () => {
+  expect(
+    await convert(
+      `<div style="--en-clipped-content:selection; --en-clipped-source-url:https://a.ch/?x=1&amp;y=2; --en-clipped-source-title:Fish &amp; Chips;"><div>a &lt;b&gt;</div></div>`
+    )
+  ).toBe(
+    `<p>a &lt;b&gt;</p><hr><p>Clipped from: <a href="https://a.ch/?x=1&y=2">Fish &amp; Chips</a></p>`
+  );
+});
+
+test("a bookmark clip keeps its card", async () => {
+  expect(
+    await convert(
+      `<div style="--en-clipped-content:bookmark; --en-clipped-source-url:https://a.ch/; --en-clipped-source-title:A;"><div>A</div><div><a href="https://a.ch/">https://a.ch/</a></div><div>An excerpt</div></div>`
+    )
+  ).toBe(
+    `<p>A</p><p><a href="https://a.ch/">https://a.ch/</a></p><p>An excerpt</p>`
+  );
+});
+
+test("a clip of a site's top is kept like a full page clip", () => {
+  expect(
+    normalizeEnml(
+      enml(
+        `<div style="--en-clipped-content:topsite; --en-clipped-source-url:https://youtube.com/;"><div>video</div></div>`
+      )
+    )
+  ).toContain(`--en-clipped-content:fullPage`);
 });
 
 test("a dropped folder is the export, the folders in it are notebooks", () => {
