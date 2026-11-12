@@ -22,6 +22,7 @@ import {
   ProviderFactory,
   Providers
 } from "@notesnook-importer/core";
+import { getProvider } from "../providers";
 import { Flex, Text } from "@theme-ui/components";
 import { strings } from "@notesnook/intl";
 
@@ -68,13 +69,13 @@ export function ProviderSelector(props: ProviderSelectorProps) {
         onChange={(e) => {
           if (e.target.value === "") return;
           const providerName: Providers = e.target.value as Providers;
-          props.onProviderChanged(ProviderFactory.getProvider(providerName));
+          props.onProviderChanged(getProvider(providerName));
         }}
       >
         <option value="">{strings.selectNotesApp()}</option>
         {ProviderFactory.getAvailableProviders().map((provider) => (
           <option key={provider} value={provider}>
-            {ProviderFactory.getProvider(provider as Providers).name}
+            {getProvider(provider as Providers).name}
           </option>
         ))}
       </select>

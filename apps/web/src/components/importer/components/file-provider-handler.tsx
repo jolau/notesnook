@@ -35,6 +35,7 @@ import Accordion from "../../accordion";
 import { TransformResult } from "../types";
 import { useStore as useAppStore } from "../../../stores/app-store";
 import { strings } from "@notesnook/intl";
+import { relativePaths } from "../providers";
 
 type FileProviderHandlerProps = {
   provider: IFileProvider;
@@ -140,6 +141,7 @@ export function FileProviderHandler(props: FileProviderHandlerProps) {
       done: 0
     });
 
+    const paths = relativePaths(files);
     for (const file of files) {
       setFilesProgress((p) => ({
         ...p,
@@ -148,6 +150,7 @@ export function FileProviderHandler(props: FileProviderHandlerProps) {
 
       const providerFile: IFile = {
         name: file.name,
+        path: paths.get(file),
         modifiedAt: file.lastModified,
         size: file.size,
         data: file
