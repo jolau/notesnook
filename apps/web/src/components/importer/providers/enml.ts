@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import { parseDocument } from "htmlparser2";
 import { render } from "dom-serializer";
-import { ChildNode, Element, isTag, isText } from "domhandler";
+import { ChildNode, Element, isTag, isText, Text } from "domhandler";
 import {
   append,
   appendChild,
@@ -48,19 +48,31 @@ type Line = {
   checked: boolean;
 };
 
+const CLIP_STYLE = /--en-clipped-content\s*:\s*([a-zA-Z]+)/;
+
 /**
- * Rewrites the checkboxes in a note's ENML into the editor's check lists
- * before the stock importer sees it. The stock importer only keeps a
- * checkbox that sits in a bullet list, and turns it into a task list.
+ * Rewrites a note's ENML before the stock importer sees it, for what the
+ * stock importer gets wrong.
  *
- * Evernote writes checkboxes three ways:
+ * Checkboxes become the editor's check lists. The stock importer only
+ * keeps a checkbox that sits in a bullet list, and turns it into a task
+ * list. Evernote writes checkboxes three ways:
  * - Evernote 10: `<ul style="--en-todo:true"><li style="--en-checked:true">`
+ *   (an item without `--en-checked` is an unticked checkbox)
  * - in a list: `<ul><li><div><en-todo checked="true"/>text</div></li></ul>`
  * - on a line: `<div><en-todo checked="true"/>text</div>`
  *
- * It also nests lists as `<ul><li/><ul>…</ul></ul>`, which the editor
+ * Evernote nests lists as `<ul><li/><ul>…</ul></ul>`, which the editor
  * reads as an extra empty item, so nested lists are moved into the item
  * before them.
+ *
+ * Web clips of a selection and bookmarks become part of the note (the
+ * stock importer drops selections and keeps only a bookmark's link), and
+ * clips of a site's top (YouTube) are kept like full page clips.
+ *
+ * Text is escaped once more, because the stock importer writes text out
+ * unescaped (code blocks too): `#include <stdio.h>` would otherwise
+ * become a tag.
  */
 export function normalizeEnml(enml: string): string {
   const document = parseDocument(enml, {
@@ -70,11 +82,70 @@ export function normalizeEnml(enml: string): string {
   const [note] = getElementsByTagName("en-note", document, true, 1);
   if (!note) return enml;
 
+  convertClips(note);
   nestListsInItems(note);
   convertListCheckboxes(note);
   convertLineCheckboxes(note);
+  escapeText(note);
 
   return render(document, { xmlMode: true, decodeEntities: false });
+}
+
+/** Whether a note's ENML has a web clip in Evernote 10's format. */
+export function hasClip(enml: string) {
+  return CLIP_STYLE.test(enml);
+}
+
+function convertClips(root: Element) {
+  const clips = findAll((e) => CLIP_STYLE.test(e.attribs.style || ""), [root]);
+  for (const clip of clips) {
+    const style = clip.attribs.style;
+    const type = CLIP_STYLE.exec(style)?.[1];
+    if (type === "topsite") {
+      clip.attribs.style = style.replace(
+        CLIP_STYLE,
+        "--en-clipped-content:fullPage"
+      );
+      continue;
+    }
+    if (type !== "selection" && type !== "simplified" && type !== "bookmark")
+      continue;
+
+    for (const child of clip.children.slice()) prepend(clip, child);
+    const url = styleValue(style, "--en-clipped-source-url");
+    const title = styleValue(style, "--en-clipped-source-title");
+    // a bookmark's card shows its title and link already
+    if (type !== "bookmark" && (url || title)) {
+      // the same footer as the stock importer's other clips
+      const link = new Element("a", url ? { href: url } : {});
+      appendChild(link, new Text(title || url || ""));
+      const footer = new Element("p", {});
+      appendChild(footer, new Text("Clipped from: "));
+      appendChild(footer, link);
+      prepend(clip, new Element("hr", {}));
+      prepend(clip, footer);
+    }
+    removeElement(clip);
+  }
+}
+
+/** A custom property's value: a title can hold `;` (as in `&amp;`). */
+function styleValue(style: string, name: string) {
+  for (const declaration of style.split(/;\s*(?=--[a-zA-Z-]+\s*:)/)) {
+    const index = declaration.indexOf(":");
+    if (declaration.slice(0, index).trim() === name)
+      return declaration
+        .slice(index + 1)
+        .trim()
+        .replace(/;$/, "");
+  }
+}
+
+function escapeText(node: Element) {
+  for (const child of node.children) {
+    if (isText(child)) child.data = child.data.replace(/&/g, "&amp;");
+    else if (isTag(child)) escapeText(child);
+  }
 }
 
 function nestListsInItems(root: Element) {
@@ -104,8 +175,13 @@ function convertListCheckboxes(root: Element) {
       item.children
     )[0];
 
+    const list = item.parent;
+    const inCheckList =
+      !!list && isTag(list) && /--en-todo\s*:\s*true/.test(list.attribs.style);
+
     if (state) checked.set(item, state[1] === "true");
     else if (todo) checked.set(item, todo.attribs.checked === "true");
+    else if (inCheckList) checked.set(item, false);
     if (todo) removeTodo(todo);
   }
   if (checked.size === 0) return;
