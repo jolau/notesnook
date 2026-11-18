@@ -33,6 +33,7 @@ import { navigate } from "../../navigation";
 import { Tag } from "@notesnook/core";
 import { strings } from "@notesnook/intl";
 import { checkFeature } from "../../common";
+import { NoteNotebooks } from "./note-notebooks";
 
 type HeaderProps = { readonly: boolean; id: string };
 function Header(props: HeaderProps) {
@@ -76,6 +77,7 @@ function Header(props: HeaderProps) {
         }}
         data-test-id="tags"
       >
+        {noteId ? <NoteNotebooks noteId={noteId} readonly={readonly} /> : null}
         {tags?.map((tag) => (
           <IconTag
             testId={`tag`}
